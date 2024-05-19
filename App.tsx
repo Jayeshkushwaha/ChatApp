@@ -1,117 +1,108 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
+import React, { useState } from 'react';
+import { SafeAreaView, View, Button, Alert, StyleSheet, FlatList, Text, TouchableOpacity } from 'react-native';
+import MapView, { Marker, Polyline } from 'react-native-maps';
 
-import React from 'react';
-import type {PropsWithChildren} from 'react';
-import {
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  useColorScheme,
-  View,
-} from 'react-native';
+const App = () => {
+  const [view, setView] = useState('map'); // 'map' or 'list'
+  const [region, setRegion] = useState({
+    latitude: 22.990278,
+    longitude: 72.654927,
+    latitudeDelta: 0.0922,
+    longitudeDelta: 0.0421,
+  });
 
-import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
+  const mapStyle = []; // Define your custom map style if any
 
-type SectionProps = PropsWithChildren<{
-  title: string;
-}>;
+  const coordinates = [
+    { latitude: 22.990278, longitude: 72.654927, name: 'Location 1' },
+    { latitude: 23.0225, longitude: 72.5714, name: 'Location 2' },
+    { latitude: 23.0396, longitude: 72.5660, name: 'Location 3' },
+  ];
 
-function Section({children, title}: SectionProps): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-  return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
-    </View>
-  );
-}
-
-function App(): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
+  const handleViewChange = (newView) => {
+    setView(newView);
   };
 
   return (
-    <SafeAreaView style={backgroundStyle}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={backgroundStyle.backgroundColor}
-      />
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        style={backgroundStyle}>
-        <Header />
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.tsx</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
-        </View>
-      </ScrollView>
+    <SafeAreaView style={{ flex: 1 }}>
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity style={styles.button} onPress={() => handleViewChange('list')}>
+          <Text style={styles.buttonText}>Show List of Places</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.button} onPress={() => handleViewChange('map')}>
+          <Text style={styles.buttonText}>Show Map</Text>
+        </TouchableOpacity>
+      </View>
+      <View style={styles.container}>
+        {view === 'map' ? (
+          <MapView
+            style={styles.mapStyle}
+            initialRegion={region}
+          >
+            {coordinates.map((coord, index) => (
+              <Marker
+                key={index}
+                draggable
+                coordinate={{ latitude: coord.latitude, longitude: coord.longitude }}
+                onDragEnd={(e) => Alert.alert(JSON.stringify(e.nativeEvent.coordinate))}
+                title={`Marker ${index + 1}`}
+                description={coord.name}
+              />
+            ))}
+            <Polyline
+              coordinates={coordinates}
+              strokeColor="#000"
+              strokeWidth={4}
+            />
+          </MapView>
+        ) : (
+          <FlatList
+            data={coordinates}
+            keyExtractor={(item, index) => index.toString()}
+            renderItem={({ item }) => (
+              <View style={styles.listItem}>
+                <Text style={styles.listItemText}>{item.name}</Text>
+                <Text style={styles.listItemText}>Latitude: {item.latitude}</Text>
+                <Text style={styles.listItemText}>Longitude: {item.longitude}</Text>
+              </View>
+            )}
+          />
+        )}
+      </View>
     </SafeAreaView>
   );
-}
+};
 
 const styles = StyleSheet.create({
-  sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
+  container: {
+    flex: 1,
   },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '600',
+  buttonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    margin: 10,
   },
-  sectionDescription: {
-    marginTop: 8,
-    fontSize: 18,
-    fontWeight: '400',
+  button: {
+    backgroundColor: '#007BFF',
+    padding: 10,
+    borderRadius: 5,
   },
-  highlight: {
-    fontWeight: '700',
+  buttonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  mapStyle: {
+    width: '100%',
+    height: '100%',
+  },
+  listItem: {
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ccc',
+  },
+  listItemText: {
+    fontSize: 16,
   },
 });
 
