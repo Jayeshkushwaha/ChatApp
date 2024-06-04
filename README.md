@@ -1,79 +1,301 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+## ChatApp in React Native Using Firebase:
 
-# Getting Started
+### 1. Setting up ChatApp
 
->**Note**: Make sure you have completed the [React Native - Environment Setup](https://reactnative.dev/docs/environment-setup) instructions till "Creating a new application" step, before proceeding.
-
-## Step 1: Start the Metro Server
-
-First, you will need to start **Metro**, the JavaScript _bundler_ that ships _with_ React Native.
-
-To start Metro, run the following command from the _root_ of your React Native project:
-
+First, install the necessary packages:
 ```bash
-# using npm
-npm start
-
-# OR using Yarn
-yarn start
+yarn add @react-navigation/native @react-navigation/stack react-native-gifted-chat react-native-reanimated react-native-gesture-handler react-native-screens react-native-safe-area-context @react-native-community/masked-view react-native-vector-icons react-native-elements firebase
 ```
 
-## Step 2: Start your Application
+### 2. Setting up firebase.js
 
-Let Metro Bundler run in its _own_ terminal. Open a _new_ terminal from the _root_ of your React Native project. Run the following command to start your _Android_ or _iOS_ app:
+Add web app in firebase console and copy firebaseConfig
 
-### For Android
+```javascript
+import { initializeApp, getApp } from 'firebase/app';
+import { initializeFirestore } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
 
-```bash
-# using npm
-npm run android
+const firebaseConfig = {
+  apiKey: 'your_api_key',
+  authDomain: 'your_auth_domain',
+  projectId: 'your_project_id',
+  storageBucket: 'your_storage_bucket',
+  messagingSenderId: 'your_messaging_sender_id',
+  appId: 'your_app_id',
+  measurementId: 'your_measurement_id' // optional
+};
 
-# OR using Yarn
-yarn android
+const app = initializeApp(firebaseConfig);
+
+const auth = getAuth(app);
+const db = initializeFirestore(app, {experimentalForceLongPolling: true});
+
+export { db, auth };
 ```
 
-### For iOS
+### 3. Creating a Chat.js
 
-```bash
-# using npm
-npm run ios
+```javascript
+import React, { useCallback, useState, useLayoutEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Avatar } from 'react-native-elements';
+import { auth, db } from '../firebase';
+import { signOut } from 'firebase/auth';
+import { collection, addDoc, getDocs, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { GiftedChat } from 'react-native-gifted-chat';
 
-# OR using Yarn
-yarn ios
+const Chat = ({ navigation }) => {
+    const [messages, setMessages] = useState([]);
+    const signOutNow = () => {
+        signOut(auth).then(() => {
+            // Sign-out successful.
+            navigation.replace('Login');
+        }).catch((error) => {
+            // An error happened.
+        });
+    }
+    useLayoutEffect(() => {
+        navigation.setOptions({
+            headerLeft: () => (
+                <View style={{ marginLeft: 20 }}>
+                    <Avatar
+                        rounded
+                        source={{
+                            uri: auth?.currentUser?.photoURL,
+                        }}
+                    />
+                </View>
+            ),
+            headerRight: () => (
+                <TouchableOpacity style={{
+                    marginRight: 10
+                }}
+                    onPress={signOutNow}
+                >
+                    <Text>logout</Text>
+                </TouchableOpacity>
+            )
+        })
+
+        const q = query(collection(db, 'chats'), orderBy('createdAt', 'desc'));
+        const unsubscribe = onSnapshot(q, (snapshot) => setMessages(
+            snapshot.docs.map(doc => ({
+                _id: doc.data()._id,
+                createdAt: doc.data().createdAt.toDate(),
+                text: doc.data().text,
+                user: doc.data().user,
+            }))
+        ));
+
+        return () => {
+          unsubscribe();
+        };
+
+    }, [navigation]);
+
+    const onSend = useCallback((messages = []) => {
+        const { _id, createdAt, text, user,} = messages[0]
+
+        addDoc(collection(db, 'chats'), { _id, createdAt,  text, user });
+    }, []);
+
+    return (
+        <GiftedChat
+            messages={messages}
+            showAvatarForEveryMessage={true}
+            onSend={messages => onSend(messages)}
+            user={{
+                _id: auth?.currentUser?.email,
+                name: auth?.currentUser?.displayName,
+                avatar: auth?.currentUser?.photoURL
+            }}
+        />
+    );
+}
+
+export default Chat;
 ```
 
-If everything is set up _correctly_, you should see your new app running in your _Android Emulator_ or _iOS Simulator_ shortly provided you have set up your emulator/simulator correctly.
+### 4. Creating a App.js
 
-This is one way to run your app — you can also run it directly from within Android Studio and Xcode respectively.
+```javascript
+import React from 'react';
+import {
+  StyleSheet,
+} from 'react-native';
 
-## Step 3: Modifying your App
+import { createStackNavigator } from '@react-navigation/stack'
+import { NavigationContainer } from '@react-navigation/native';
+import LoginScreen from './screens/Login';
+import RegisterScreen from './screens/Register';
+import ChatScreen from './screens/Chat';
 
-Now that you have successfully run the app, let's modify it.
+const Stack = createStackNavigator();
 
-1. Open `App.tsx` in your text editor of choice and edit some lines.
-2. For **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Developer Menu** (<kbd>Ctrl</kbd> + <kbd>M</kbd> (on Window and Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (on macOS)) to see your changes!
+const App = () => {
+  return (
+    <NavigationContainer>
+      <Stack.Navigator >
+        <Stack.Screen name='Login' component={LoginScreen} />
+        <Stack.Screen name='Register' component={RegisterScreen} />
+        <Stack.Screen name='Chat' component={ChatScreen} />
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+};
 
-   For **iOS**: Hit <kbd>Cmd ⌘</kbd> + <kbd>R</kbd> in your iOS Simulator to reload the app and see your changes!
+export default App;
+```
 
-## Congratulations! :tada:
+### 5. Creating a Login.js
 
-You've successfully run and modified your React Native App. :partying_face:
+```javascript
+import React, { useState } from 'react';
+import { View, StyleSheet } from 'react-native'
+import { Input, Button } from 'react-native-elements';
+import { auth } from '../firebase';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import Icon from 'react-native-vector-icons/FontAwesome';
 
-### Now what?
+const Login = ({navigation}) => {
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [Introduction to React Native](https://reactnative.dev/docs/getting-started).
+    const openRegisterScreen = () => {
+      navigation.navigate('Register');
+    };
 
-# Troubleshooting
+    const signin = () => {
+      signInWithEmailAndPassword(auth, email, password)
+        .then((userCredential) => {
+          navigation.navigate('Chat');
+        })
+        .catch((error) => {
+          const errorCode = error.code;
+          const errorMessage = error.message;
+          alert(errorMessage);
+        });
+    };
 
-If you can't get this to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
+    return (
+        <View style={styles.container}>
+            <Input
+                placeholder='Enter your email'
+                label='Email'
+                leftIcon={{ type: 'material', name: 'email' }}
+                value={email}
+                onChangeText={text => setEmail(text)}
+            />
+            <Input
+                placeholder='Enter your password'
+                label='Password'
+                leftIcon={{ type: 'material', name: 'lock' }}
+                value={password}
+                onChangeText={text => setPassword(text)}
+                secureTextEntry
+            />
+            <Button title="sign in" style={styles.button} onPress={signin} />
+            <Button title="register" style={styles.button} onPress={openRegisterScreen} />
+        </View>
+    )
+}
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        alignItems: 'center',
+        padding: 10,
+        marginTop: 100,
+    },
+    button: {
+        width: 370,
+        marginTop: 10
+    }
+});
 
-# Learn More
+export default Login;
+```
 
-To learn more about React Native, take a look at the following resources:
+### 6. Creating a Register.js
 
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+```javascript
+import React, { useState } from 'react';
+import { View, StyleSheet } from 'react-native'
+import { Input, Button } from 'react-native-elements';
+import { auth } from '../firebase';
+import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+
+const Register = () => {
+    const [name, setName] = useState('');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [avatar, setAvatar] = useState('');
+
+    const register = () => {
+      createUserWithEmailAndPassword(auth, email, password)
+        .then((userCredential) => {
+            // Registered
+            const user = userCredential.user;
+            updateProfile(user, {
+                displayName: name,
+                photoURL: avatar ? avatar : 'https://gravatar.com/avatar/94d45dbdba988afacf30d916e7aaad69?s=200&d=mp&r=x',
+            })
+            .then(() => {
+              alert('Registered, please login.');
+            })
+            .catch((error) => {
+                alert(error.message);
+            })
+        })
+        .catch((error) => {
+            const errorCode = error.code;
+            const errorMessage = error.message;
+            alert(errorMessage);
+        });
+    }
+
+    return (
+        <View style={styles.container}>
+            <Input
+                placeholder='Enter your name'
+                label='Name'
+                value={name}
+                onChangeText={text => setName(text)}
+            />
+            <Input
+                placeholder='Enter your email'
+                label='Email'
+                value={email}
+                onChangeText={text => setEmail(text)}
+            />
+            <Input
+                placeholder='Enter your password'
+                label='Password'
+                value={password} onChangeText={text => setPassword(text)}
+                secureTextEntry
+            />
+            <Input
+                placeholder='Enter your image url'
+                label='Profile Picture'
+                value = {avatar}
+                onChangeText={text => setAvatar(text)}
+            />
+            <Button title='register' onPress={register} style={styles.button} />
+        </View>
+    )
+}
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        alignItems: 'center',
+        padding: 10,
+        marginTop: 100,
+    },
+    button: {
+        width: 370,
+        marginTop: 10
+    }
+});
+
+export default Register;
+```
